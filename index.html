@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocab Threat — Popup Mock</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --wallpaper-1:#232946;
+    --wallpaper-2:#0f1220;
+    --icon-bg: rgba(255,255,255,0.14);
+    --icon-label:#eaeaf2;
+    --status:#f4f4f8;
+
+    --win-title-1:#0a2472;
+    --win-title-2:#0058c9;
+    --win-body:#ece9d8;
+    --win-border:#0a2472;
+    --win-btn:#d4d0c8;
+    --win-btn-hi:#fff;
+    --win-btn-lo:#808080;
+    --warn-red:#c00000;
+    --progress-track:#c8c4ba;
+    --progress-fill:#e6b800;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; height:100%;
+    background:#111;
+    display:flex; align-items:center; justify-content:center;
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    overflow:hidden;
+  }
+
+  .phone{
+    position:relative;
+    width:min(390px, 94vw);
+    aspect-ratio:390/844;
+    max-height:94vh;
+    background:radial-gradient(circle at 30% 20%, var(--wallpaper-1), var(--wallpaper-2) 70%);
+    border-radius:44px;
+    overflow:hidden;
+    box-shadow:0 0 0 10px #000, 0 20px 60px rgba(0,0,0,0.6);
+  }
+
+  /* status bar */
+  .status-bar{
+    position:absolute; top:0; left:0; right:0; height:48px;
+    display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 22px 8px;
+    color:var(--status);
+    font-size:13px; font-weight:600;
+    z-index:5;
+  }
+
+  /* home screen icon grid */
+  .homescreen{
+    position:absolute; inset:0;
+    padding:76px 22px 120px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:22px 14px;
+  }
+  .app{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .app-icon{
+    width:56px; height:56px; border-radius:14px;
+    background:var(--icon-bg);
+    backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px;
+    position:relative;
+  }
+  .app-icon.infected::after{
+    content:"";
+    position:absolute; top:-3px; right:-3px;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--warn-red);
+    border:2px solid #111;
+  }
+  .app-label{
+    color:var(--icon-label);
+    font-size:11px;
+    text-shadow:0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  .dock{
+    position:absolute; left:14px; right:14px; bottom:26px; height:80px;
+    background:rgba(255,255,255,0.12);
+    backdrop-filter:blur(10px);
+    border-radius:26px;
+    display:flex; align-items:center; justify-content:space-evenly;
+  }
+  .dock .app-icon{ width:52px; height:52px; }
+
+  /* --- stacked popups peeking behind --- */
+  .peek{
+    position:absolute;
+    left:20px; right:20px;
+    height:300px;
+    background:var(--win-body);
+    border:2px solid var(--win-border);
+    border-radius:6px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.5);
+  }
+  .peek-1{ top:150px; transform:rotate(-3deg) scale(0.96); opacity:0.85; z-index:6; }
+  .peek-2{ top:170px; transform:rotate(2deg) scale(0.93); opacity:0.6; z-index:5; }
+
+  /* --- the active popup: fake old-windows alert box --- */
+  .popup{
+    position:absolute;
+    left:5%; right:5%; top:9%; bottom:11%;
+    background:var(--win-body);
+    border:2px solid var(--win-border);
+    border-radius:6px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.65);
+    z-index:10;
+    font-family:Tahoma, "Segoe UI", sans-serif;
+    animation:pop-in 240ms ease-out;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  @keyframes pop-in{
+    0%{ transform:scale(0.85); opacity:0; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  .popup.shake{ animation:shake 400ms; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-8px); }
+    40%{ transform:translateX(8px); }
+    60%{ transform:translateX(-6px); }
+    80%{ transform:translateX(6px); }
+  }
+
+  .titlebar{
+    background:linear-gradient(180deg, var(--win-title-2), var(--win-title-1));
+    color:#fff;
+    font-size:13px;
+    font-weight:700;
+    padding:6px 6px 6px 10px;
+    display:flex; align-items:center; justify-content:space-between;
+    border-radius:4px 4px 0 0;
+    flex:none;
+  }
+  .titlebar-left{ display:flex; align-items:center; gap:6px; }
+  .titlebar-left .blink{
+    color:#ffdd00;
+    animation:blink 900ms steps(1) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0.2; } }
+  .titlebar-x{
+    width:20px; height:20px;
+    background:var(--win-btn);
+    border:1px solid #000;
+    border-radius:2px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:900;
+    color:#333;
+    opacity:0.45;
+    cursor:not-allowed;
+  }
+
+  .popup-body{
+    padding:14px 14px 10px;
+    flex:1;
+    overflow-y:auto;
+    min-height:0;
+  }
+  .popup-warn-row{
+    display:flex; gap:10px; align-items:flex-start;
+    margin-bottom:12px;
+  }
+  .warn-icon{
+    flex:none;
+    width:34px; height:34px;
+    border-radius:50%;
+    background:var(--warn-red);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:900; font-size:18px;
+    box-shadow:0 0 0 3px #fff inset;
+  }
+  .popup-text .exe{
+    font-size:11px; color:#555; margin-bottom:4px;
+    font-family:"Courier New", monospace;
+  }
+  .card-visual{
+    font-size:44px;
+    line-height:1;
+    text-align:center;
+    margin:2px 0 8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .card-visual img{
+    width:88px; height:88px;
+    object-fit:contain;
+    border-radius:8px;
+    background:#fff;
+    border:1px solid rgba(0,0,0,0.15);
+  }
+  .card-visual.placeholder{
+    font-size:32px;
+    color:#999;
+  }
+  .prompt{
+    font-size:14px; color:#111; font-weight:600; line-height:1.35;
+    text-align:center;
+    margin-bottom:4px;
+  }
+  .prompt .target{
+    color:var(--warn-red);
+  }
+
+  .options{
+    display:flex; flex-direction:column; gap:8px;
+    margin:10px 0 6px;
+  }
+  .opt-btn{
+    font-family:Tahoma, sans-serif;
+    font-size:13px;
+    text-align:left;
+    padding:8px 10px;
+    background:linear-gradient(180deg,#fdfdfd,var(--win-btn));
+    border:1px solid var(--win-btn-lo);
+    border-top-color:var(--win-btn-hi);
+    border-left-color:var(--win-btn-hi);
+    border-radius:3px;
+    cursor:pointer;
+    color:#111;
+  }
+  .opt-btn:active{
+    background:linear-gradient(180deg,var(--win-btn),#fdfdfd);
+    border-color:var(--win-btn-lo);
+  }
+
+  /* true/false round */
+  .tf-buttons{
+    display:flex; gap:8px;
+  }
+  .tf-buttons .opt-btn{
+    flex:1;
+    text-align:center;
+    font-weight:700;
+  }
+  .tf-yes{ color:#0a6b1d; }
+  .tf-no{ color:#a30000; }
+
+  /* type-the-answer round */
+  .type-wrap{
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .type-input{
+    font-family:Tahoma, sans-serif;
+    font-size:14px;
+    padding:8px 10px;
+    border:1px solid #808080;
+    border-radius:2px;
+    background:#fff;
+    box-shadow:inset 1px 1px 2px rgba(0,0,0,0.25);
+  }
+  .type-submit{
+    text-align:center;
+    font-weight:700;
+  }
+
+  /* matching round */
+  .match-grid{
+    display:flex; gap:10px;
+  }
+  .match-col{
+    flex:1;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .match-chip{
+    font-family:Tahoma, sans-serif;
+    font-size:12px;
+    padding:7px 8px;
+    background:linear-gradient(180deg,#fdfdfd,var(--win-btn));
+    border:1px solid var(--win-btn-lo);
+    border-top-color:var(--win-btn-hi);
+    border-left-color:var(--win-btn-hi);
+    border-radius:3px;
+    cursor:pointer;
+    color:#111;
+    text-align:left;
+  }
+  .match-chip.selected{
+    outline:2px solid #0058c9;
+  }
+  .match-chip.matched{
+    background:#c8f0c8;
+    border-color:#3a8f3a;
+    opacity:0.7;
+    cursor:default;
+  }
+  .match-chip.shake-chip{
+    animation:shake 300ms;
+    background:#f5c2c2;
+  }
+  .match-chip.visual-chip{
+    font-size:22px;
+    text-align:center;
+  }
+
+  .progress-wrap{
+    margin-top:8px;
+  }
+  .progress-label{
+    font-size:10px; color:var(--warn-red); font-weight:700;
+    margin-bottom:3px;
+    display:flex; justify-content:space-between;
+  }
+  .progress-track{
+    height:12px;
+    background:var(--progress-track);
+    border:1px solid #808080;
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    width:100%;
+    background:repeating-linear-gradient(90deg,var(--progress-fill) 0 8px, #f4d35e 8px 16px);
+    animation:drain 8s linear forwards;
+  }
+  @keyframes drain{
+    from{ width:100%; }
+    to{ width:0%; }
+  }
+
+  .toast{
+    position:absolute;
+    left:50%; bottom:150px;
+    transform:translateX(-50%);
+    background:rgba(0,0,0,0.85);
+    color:#fff;
+    font-size:12px;
+    padding:8px 14px;
+    border-radius:8px;
+    opacity:0;
+    pointer-events:none;
+    z-index:20;
+    white-space:nowrap;
+  }
+  .toast.show{
+    animation:toast-in 1400ms ease forwards;
+  }
+  @keyframes toast-in{
+    0%{ opacity:0; transform:translate(-50%,8px); }
+    15%{ opacity:1; transform:translate(-50%,0); }
+    85%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+
+  .caption{
+    position:fixed; top:16px; left:16px; right:16px;
+    color:#999; font-size:12px; text-align:center;
+    font-family:system-ui,sans-serif;
+  }
+
+  /* --- set-select / session screens: same fake-Windows aesthetic as the popup --- */
+  .select-screen{
+    position:absolute;
+    left:5%; right:5%; top:15%; bottom:15%;
+    z-index:30;
+    background:var(--win-body);
+    border:2px solid var(--win-border);
+    border-radius:6px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.65);
+    font-family:Tahoma, "Segoe UI", sans-serif;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+  }
+  .select-screen.hidden{ display:none; }
+
+  .fake-titlebar{
+    background:linear-gradient(180deg, var(--win-title-2), var(--win-title-1));
+    color:#fff;
+    font-size:13px; font-weight:700;
+    padding:6px 6px 6px 10px;
+    display:flex; align-items:center; justify-content:space-between;
+    flex:none;
+  }
+  .fake-titlebar .titlebar-left{ display:flex; align-items:center; gap:6px; }
+  .fake-titlebar .titlebar-x{
+    width:20px; height:20px;
+    background:var(--win-btn);
+    border:1px solid #000;
+    border-radius:2px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:900;
+    color:#333;
+    opacity:0.45;
+  }
+
+  .fake-window-body{
+    padding:14px;
+    overflow-y:auto;
+    flex:1;
+  }
+
+  .select-title{
+    font-size:15px; font-weight:800; color:#111; margin:0 0 4px;
+  }
+  .select-sub{
+    font-size:12px; color:#444; margin:0 0 14px;
+  }
+  .set-list{
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .set-card{
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(180deg,#fdfdfd,var(--win-btn));
+    border:1px solid var(--win-btn-lo);
+    border-top-color:var(--win-btn-hi);
+    border-left-color:var(--win-btn-hi);
+    border-radius:3px;
+    padding:8px 10px;
+    cursor:pointer;
+    text-align:left;
+  }
+  .set-card:active{
+    background:linear-gradient(180deg,var(--win-btn),#fdfdfd);
+  }
+  .set-icon{
+    flex:none;
+    width:32px; height:32px;
+    border-radius:4px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:17px;
+    background:rgba(0,0,0,0.05);
+    border:1px solid rgba(0,0,0,0.15);
+  }
+  .set-info .set-name{
+    font-size:13px; font-weight:700; color:#111;
+  }
+  .set-info .set-meta{
+    font-size:11px; color:#555; margin-top:1px;
+  }
+
+  .set-cleared{
+    position:absolute;
+    left:5%; right:5%; top:22%;
+    z-index:25;
+    background:var(--win-body);
+    border:2px solid var(--win-border);
+    border-radius:6px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.65);
+    font-family:Tahoma, "Segoe UI", sans-serif;
+    color:#111;
+    text-align:center;
+    padding:0;
+    opacity:0; pointer-events:none;
+    overflow:hidden;
+  }
+  .set-cleared.show{ opacity:1; pointer-events:auto; }
+  .set-cleared .fake-window-body{ padding:16px 18px; }
+  .set-cleared h2{ font-size:16px; margin:0 0 8px; letter-spacing:0.5px; }
+  .set-cleared p{ font-size:12px; color:#444; margin:0 0 14px; }
+  .set-cleared button{
+    font-family:Tahoma, sans-serif;
+    font-size:13px; font-weight:700;
+    padding:7px 16px;
+    background:linear-gradient(180deg,#fdfdfd,var(--win-btn));
+    border:1px solid var(--win-btn-lo);
+    border-top-color:var(--win-btn-hi);
+    border-left-color:var(--win-btn-hi);
+    border-radius:3px;
+    color:#111;
+    cursor:pointer;
+  }
+
+  .back-link{
+    margin-top:10px;
+    background:none; border:none;
+    color:#0058c9; font-size:12px;
+    font-family:Tahoma, sans-serif;
+    text-align:left; cursor:pointer;
+    text-decoration:underline;
+    padding:0;
+  }
+
+  .cfg-field{ margin-bottom:10px; }
+  .cfg-field label{
+    display:block; font-size:11px; color:#444; margin-bottom:3px;
+    font-family:Tahoma, sans-serif;
+  }
+  .cfg-field input{
+    width:100%;
+    font-family:Tahoma, sans-serif;
+    font-size:12px;
+    padding:6px 8px;
+    border:1px solid #808080;
+    border-radius:2px;
+    box-shadow:inset 1px 1px 2px rgba(0,0,0,0.25);
+  }
+  .cfg-error{
+    font-size:11px; color:var(--warn-red); margin-top:8px; display:none;
+  }
+
+  /* --- the "simple task" being interrupted --- */
+  .task-banner{
+    position:absolute; top:56px; left:16px; right:16px;
+    background:rgba(255,255,255,0.1);
+    backdrop-filter:blur(8px);
+    border-radius:14px;
+    padding:10px 14px;
+    color:#eaeaf2;
+    z-index:2;
+  }
+  .task-app{ font-size:12px; font-weight:700; opacity:0.85; margin-bottom:2px; }
+  .task-line{ font-size:12px; opacity:0.75; }
+  .typing-dots{
+    animation:blink 1200ms steps(1) infinite;
+  }
+
+  /* --- speaker / pronunciation button --- */
+  .speak-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:20px; height:20px;
+    margin-left:6px;
+    font-size:12px;
+    background:rgba(0,0,0,0.06);
+    border:1px solid rgba(0,0,0,0.15);
+    border-radius:50%;
+    cursor:pointer;
+    vertical-align:middle;
+    flex:none;
+  }
+  .speak-btn:active{ background:rgba(0,0,0,0.15); }
+  .opt-btn{
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .type-hear{
+    align-self:flex-start;
+    font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<div class="caption">You're just trying to send a text. Tap words to hear them. Wrong answers make it worse.</div>
+
+<div class="phone">
+  <div class="status-bar">
+    <span>9:41</span>
+    <span>••• 🔋</span>
+  </div>
+
+  <div class="homescreen" id="homescreen">
+    <!-- icons generated by JS -->
+  </div>
+
+  <div class="task-banner" id="taskBanner">
+    <div class="task-app">💬 Messages</div>
+    <div class="task-line">Typing to Mom: "omw, stuck at<span class="typing-dots">...</span>"</div>
+  </div>
+
+  <div class="dock" id="dock"></div>
+
+  <!-- peeking stack behind active popup -->
+  <div class="peek peek-2"></div>
+  <div class="peek peek-1"></div>
+
+  <div class="popup" id="popup">
+    <div class="titlebar">
+      <div class="titlebar-left">
+        <span class="blink">⚠</span>
+        <span id="popupTitle">VOCAB32.EXE — Threat Detected</span>
+      </div>
+      <div class="titlebar-x" title="You can't close this. Answer it.">✕</div>
+    </div>
+    <div class="popup-body">
+      <div class="popup-warn-row">
+        <div class="warn-icon">!</div>
+        <div class="popup-text">
+          <div class="exe" id="exePath">C:\SYSTEM\VOCAB\infect.dll</div>
+        </div>
+      </div>
+
+      <div class="card-visual" id="cardVisual"></div>
+      <div class="prompt" id="promptText">What is this?</div>
+
+      <div class="options" id="options"></div>
+
+      <div class="progress-wrap">
+        <div class="progress-label"><span>SPREADING</span><span>ACT NOW</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="set-cleared" id="setCleared">
+    <div class="fake-titlebar">
+      <div class="titlebar-left"><span class="blink">⚠</span><span>VOCAB32.EXE — Report</span></div>
+      <div class="titlebar-x">✕</div>
+    </div>
+    <div class="fake-window-body">
+      <h2>SET CLEARED</h2>
+      <p id="clearedMeta">All threats neutralized.</p>
+      <button id="backToSets">Choose another set</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="select-screen hidden" id="selectScreen">
+    <div class="fake-titlebar">
+      <div class="titlebar-left"><span class="blink">⚠</span><span>VOCAB32.EXE — Select Payload</span></div>
+      <div class="titlebar-x">✕</div>
+    </div>
+    <div class="fake-window-body">
+      <div class="select-title">Choose a set</div>
+      <div class="select-sub">Pick what you want to study before the infection starts.</div>
+      <div class="set-list" id="setList"></div>
+    </div>
+  </div>
+
+  <div class="select-screen hidden" id="sessionScreen">
+    <div class="fake-titlebar">
+      <div class="titlebar-left"><span class="blink">⚠</span><span>VOCAB32.EXE — Set Duration</span></div>
+      <div class="titlebar-x">✕</div>
+    </div>
+    <div class="fake-window-body">
+      <div class="select-title">How much time do you have?</div>
+      <div class="select-sub" id="sessionSub">Pick a session length.</div>
+      <div class="set-list">
+        <div class="set-card" data-size="7">
+          <div class="set-icon">⚡</div>
+          <div class="set-info"><div class="set-name">Quick</div><div class="set-meta">7 words</div></div>
+        </div>
+        <div class="set-card" data-size="11">
+          <div class="set-icon">⏱️</div>
+          <div class="set-info"><div class="set-name">Medium</div><div class="set-meta">11 words</div></div>
+        </div>
+        <div class="set-card" data-size="15">
+          <div class="set-icon">🕒</div>
+          <div class="set-info"><div class="set-name">Large</div><div class="set-meta">15 words</div></div>
+        </div>
+      </div>
+      <button class="back-link" id="sessionBack">← back to sets</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const iconGlyphs = ["📷","🎵","💬","📅","🗺️","⚙️","📧","🎮","📁","🕹️","📈","🛒"];
+  const home = document.getElementById('homescreen');
+  const labels = ["Photos","Music","Chat","Cal","Maps","Set","Mail","Games","Files","Play","Stats","Shop"];
+  labels.forEach((l,i)=>{
+    const app = document.createElement('div');
+    app.className='app';
+    const infected = i===2 || i===7; // a couple icons show as "infected"
+    app.innerHTML = `<div class="app-icon ${infected?'infected':''}">${iconGlyphs[i]}</div><div class="app-label">${l}</div>`;
+    home.appendChild(app);
+  });
+  const dock = document.getElementById('dock');
+  ["📞","🌐","📷","💬"].forEach(g=>{
+    const d = document.createElement('div');
+    d.className='app-icon';
+    d.textContent = g;
+    dock.appendChild(d);
+  });
+
+  document.getElementById('popup').style.display = 'none';
+  document.getElementById('taskBanner').style.display = 'none';
+
+  const popup = document.getElementById('popup');
+  const options = document.getElementById('options');
+  const toast = document.getElementById('toast');
+  const promptText = document.getElementById('promptText');
+  const cardVisual = document.getElementById('cardVisual');
+  const exePath = document.getElementById('exePath');
+  const progressFill = document.getElementById('progressFill');
+  const selectScreen = document.getElementById('selectScreen');
+  const setList = document.getElementById('setList');
+  const sessionScreen = document.getElementById('sessionScreen');
+  const sessionSub = document.getElementById('sessionSub');
+  const sessionBack = document.getElementById('sessionBack');
+  const taskBanner = document.getElementById('taskBanner');
+  const setCleared = document.getElementById('setCleared');
+  const clearedMeta = document.getElementById('clearedMeta');
+  const backToSets = document.getElementById('backToSets');
+
+  // ---- Supabase connection ----
+  // These are the PUBLIC anon key + project URL — safe to ship in client code
+  // (this is what the anon key is designed for; never put the service_role
+  // key here). Fill these in with your own project's values before hosting.
+  const SUPABASE_URL = 'https://xaqkrjvrdgwyuptoyyfl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhhcWtyanZyZGd3eXVwdG95eWZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwNjM2NDIsImV4cCI6MjEwMTYzOTY0Mn0.WUejF1HXULU-KxuOltQf5TX3mTIoWkVk0AN2AFm5aaI';
+
+  let sb = null;
+  let sets = [];
+  let currentSet = null; // { id, name, icon, exe_label }
+  let queue = [];
+  let activeRound = null;
+  let clearedCards = [];
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  connectSilently();
+
+  async function connectSilently(){
+    if(SUPABASE_URL.includes('PASTE_YOUR') || SUPABASE_ANON_KEY.includes('PASTE_YOUR')){
+      selectScreen.querySelector('.fake-window-body').innerHTML =
+        '<div class="select-title">Setup needed</div><div class="select-sub">This copy of the game is missing its Supabase URL/key — edit the SUPABASE_URL and SUPABASE_ANON_KEY constants near the top of the script.</div>';
+      selectScreen.classList.remove('hidden');
+      return;
+    }
+    try{
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data, error } = await sb
+        .from('sets')
+        .select('id, name, icon, exe_label, cards(count)')
+        .order('created_at');
+      if(error) throw error;
+      sets = data || [];
+      renderSetList();
+      selectScreen.classList.remove('hidden');
+    } catch(err){
+      console.error(err);
+      selectScreen.querySelector('.fake-window-body').innerHTML =
+        '<div class="select-title">Couldn\'t load sets</div><div class="select-sub">Something went wrong reaching the database. Try again shortly.</div>';
+      selectScreen.classList.remove('hidden');
+    }
+  }
+
+  function renderSetList(){
+    setList.innerHTML = '';
+    sets.forEach(set=>{
+      const count = set.cards && set.cards[0] ? set.cards[0].count : null;
+      const card = document.createElement('div');
+      card.className = 'set-card';
+      card.innerHTML = `
+        <div class="set-icon">${set.icon || '📚'}</div>
+        <div class="set-info">
+          <div class="set-name">${set.name}</div>
+          <div class="set-meta">${count === null ? '—' : count} words</div>
+        </div>`;
+      card.addEventListener('click', ()=> chooseSet(set));
+      setList.appendChild(card);
+    });
+  }
+
+  // ---- pronunciation (tap any word to hear it) ----
+  let lastUtterance = null; // keep a reference so it isn't garbage-collected mid-speech
+  let ttsUnlocked = false;
+
+  function unlockTTS(){
+    if(ttsUnlocked || !('speechSynthesis' in window)) return;
+    ttsUnlocked = true;
+    const primer = new SpeechSynthesisUtterance('');
+    primer.volume = 0;
+    window.speechSynthesis.speak(primer);
+  }
+  document.addEventListener('pointerdown', unlockTTS, { once:true });
+
+  function speakNow(text){
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US';
+    u.rate = 0.92;
+    u.onerror = ()=> showToast('🔇 Audio blocked in this preview');
+    lastUtterance = u;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  function speakFallback(text){
+    if(!('speechSynthesis' in window)){
+      showToast('🔇 No recorded audio, and TTS not supported here');
+      return;
+    }
+    unlockTTS();
+    const voices = window.speechSynthesis.getVoices();
+    if(voices.length === 0){
+      const onReady = ()=>{
+        window.speechSynthesis.removeEventListener('voiceschanged', onReady);
+        speakNow(text);
+      };
+      window.speechSynthesis.addEventListener('voiceschanged', onReady);
+      setTimeout(()=> speakNow(text), 300);
+    } else {
+      speakNow(text);
+    }
+  }
+
+  // Plays the real recorded/uploaded audio file if this card has one;
+  // otherwise falls back to the browser's built-in text-to-speech.
+  function playPronunciation(termCard){
+    if(termCard.audio_url){
+      const audio = new Audio(termCard.audio_url);
+      audio.play().catch(()=> speakFallback(termCard.term));
+    } else {
+      speakFallback(termCard.term);
+    }
+  }
+  function makeSpeakerBtn(termCard){
+    const btn = document.createElement('span');
+    btn.className = 'speak-btn';
+    btn.textContent = '🔊';
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      playPronunciation(termCard);
+    });
+    return btn;
+  }
+
+  // ---- break big words into small pieces (rough syllable chunker) ----
+  function chunkWord(term){
+    return term.split(' ').map(w=>{
+      if(w.length <= 5) return w;
+      const parts = w.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/gi);
+      return parts && parts.length > 1 ? parts.join('·') : w;
+    }).join(' ');
+  }
+
+  function chooseSet(set){
+    currentSet = set;
+    sessionSub.textContent = `Studying: ${set.name}`;
+    selectScreen.classList.add('hidden');
+    sessionScreen.classList.remove('hidden');
+  }
+
+  sessionScreen.querySelectorAll('.set-card').forEach(card=>{
+    card.addEventListener('click', ()=> startGame(parseInt(card.dataset.size, 10)));
+  });
+  sessionBack.addEventListener('click', ()=>{
+    sessionScreen.classList.add('hidden');
+    selectScreen.classList.remove('hidden');
+  });
+
+  function pickDistractorCards(allCards, excludeId, n){
+    const pool = allCards.filter(c => c.id !== excludeId);
+    return shuffle(pool).slice(0, n);
+  }
+
+  function buildQueue(allCards){
+    const pool = shuffle(allCards);
+    const rounds = [];
+    let i = 0;
+    while(i < pool.length){
+      const remaining = pool.length - i;
+      const doMatch = remaining >= 3 && Math.random() < 0.3;
+      if(doMatch){
+        rounds.push({ type:'match', cards: pool.slice(i, i+3), allCards });
+        i += 3;
+      } else {
+        const types = ['multiple','truefalse','type'];
+        const type = types[Math.floor(Math.random()*types.length)];
+        rounds.push({ type, card: pool[i], allCards });
+        i += 1;
+      }
+    }
+    return rounds;
+  }
+
+  // Fetches ONLY the N cards needed for this session — sampled randomly
+  // server-side via the get_random_cards() function, not the whole set.
+  async function startGame(size){
+    sessionScreen.classList.add('hidden');
+    showToast('LOADING PAYLOAD…');
+    let allCards;
+    try{
+      const { data, error } = await sb.rpc('get_random_cards', {
+        p_set_id: currentSet.id,
+        p_limit: size
+      });
+      if(error) throw error;
+      allCards = data;
+    } catch(err){
+      console.error(err);
+      // fallback if the RPC function hasn't been created yet
+      const { data, error } = await sb.from('cards').select('*').eq('set_id', currentSet.id).limit(size);
+      if(error){ showToast('Failed to load cards'); console.error(error); return; }
+      allCards = data;
+    }
+    if(!allCards || allCards.length === 0){
+      showToast('This set has no cards yet');
+      selectScreen.classList.remove('hidden');
+      return;
+    }
+
+    queue = buildQueue(allCards);
+    clearedCards = [];
+    exePath.textContent = "C:\\SYSTEM\\VOCAB\\" + (currentSet.exe_label || 'DATA.SYS');
+    setCleared.classList.remove('show');
+    taskBanner.style.display = '';
+    popup.style.display = '';
+    popup.style.transition = 'none';
+    popup.style.transform = 'scale(1)';
+    popup.style.opacity = '1';
+    nextQuestion();
+  }
+
+  function nextQuestion(){
+    // "evaluate at random": occasionally re-check a word already cleared this session
+    if(clearedCards.length >= 3 && Math.random() < 0.2){
+      const reviewCard = clearedCards[Math.floor(Math.random()*clearedCards.length)];
+      const types = ['multiple','truefalse','type'];
+      const type = types[Math.floor(Math.random()*types.length)];
+      showToast('RANDOM CHECK');
+      startRound({ type, card: reviewCard, allCards: clearedCards, isReview:true });
+      return;
+    }
+    if(queue.length === 0){
+      clearedMeta.textContent = `${currentSet.name} — every threat neutralized.`;
+      setCleared.classList.add('show');
+      taskBanner.style.display = 'none';
+      return;
+    }
+    startRound(queue.shift());
+  }
+
+  function startRound(round){
+    round.wrongCount = 0;
+    activeRound = round;
+    renderActiveRound();
+  }
+
+  function renderActiveRound(){
+    options.innerHTML = '';
+    const round = activeRound;
+    if(round.type === 'multiple') renderMultiple(round);
+    else if(round.type === 'truefalse') renderTrueFalse(round);
+    else if(round.type === 'type') renderType(round);
+    else if(round.type === 'match') renderMatch(round);
+
+    progressFill.style.animation = 'none';
+    void progressFill.offsetWidth;
+    progressFill.style.animation = null;
+  }
+
+  function onCorrect(round){
+    showToast('THREAT REMOVED');
+    if(round && !round.isReview){
+      const cleared = round.cards || [round.card];
+      cleared.forEach(c=>{
+        if(!clearedCards.includes(c)) clearedCards.push(c);
+      });
+    }
+    popup.style.transition = 'transform 260ms ease, opacity 260ms ease';
+    popup.style.transform = 'scale(0.7)';
+    popup.style.opacity = '0';
+    setTimeout(()=>{
+      popup.style.transition = 'none';
+      popup.style.transform = 'scale(1)';
+      popup.style.opacity = '1';
+      nextQuestion();
+    }, 260);
+  }
+
+  // "if a user doesn't learn something, always try sideways": after 2 misses,
+  // show a broken-down word hint and switch to a different question type
+  function handleWrong(round){
+    popup.classList.remove('shake');
+    void popup.offsetWidth;
+    popup.classList.add('shake');
+
+    round.wrongCount = (round.wrongCount || 0) + 1;
+
+    if(round.type !== 'match' && round.wrongCount >= 2){
+      const otherTypes = ['multiple','truefalse','type'].filter(t => t !== round.type);
+      round.type = otherTypes[Math.floor(Math.random()*otherTypes.length)];
+      round.wrongCount = 0;
+      const hint = round.card.term.replace(/\s/g,'').length > 5
+        ? ` — hint: ${chunkWord(round.card.term)}`
+        : '';
+      showToast(`TRYING A DIFFERENT WAY${hint}`);
+      setTimeout(renderActiveRound, 400);
+    } else {
+      showToast('WRONG — INFECTION SPREADING');
+    }
+  }
+
+  function setCardVisual(card){
+    cardVisual.classList.remove('placeholder');
+    if(card.image_url){
+      cardVisual.innerHTML = `<img src="${card.image_url}" alt="">`;
+    } else {
+      cardVisual.classList.add('placeholder');
+      cardVisual.textContent = '🖼️';
+    }
+  }
+
+  function renderMultiple(round){
+    const { card, allCards } = round;
+    cardVisual.style.display = '';
+    setCardVisual(card);
+    promptText.innerHTML = `What is this?`;
+    const distractors = pickDistractorCards(allCards, card.id, 2);
+    shuffle([card, ...distractors]).forEach(opt=>{
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      const label = document.createElement('span');
+      label.textContent = opt.term;
+      btn.appendChild(label);
+      btn.appendChild(makeSpeakerBtn(opt));
+      btn.addEventListener('click', ()=>{
+        opt.id === card.id ? onCorrect(round) : handleWrong(round);
+      });
+      options.appendChild(btn);
+    });
+  }
+
+  function renderTrueFalse(round){
+    const { card, allCards } = round;
+    cardVisual.style.display = '';
+    setCardVisual(card);
+    const isTrue = Math.random() < 0.5;
+    const shownCard = isTrue ? card : pickDistractorCards(allCards, card.id, 1)[0];
+    promptText.innerHTML = `Is this <span class="target">"${shownCard.term}"</span>?`;
+    promptText.appendChild(makeSpeakerBtn(shownCard));
+
+    const wrap = document.createElement('div');
+    wrap.className = 'tf-buttons';
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'opt-btn tf-yes';
+    yesBtn.textContent = '✔ CORRECT';
+    const noBtn = document.createElement('button');
+    noBtn.className = 'opt-btn tf-no';
+    noBtn.textContent = '✘ INCORRECT';
+    yesBtn.addEventListener('click', ()=> (isTrue ? onCorrect(round) : handleWrong(round)));
+    noBtn.addEventListener('click', ()=> (!isTrue ? onCorrect(round) : handleWrong(round)));
+    wrap.appendChild(yesBtn);
+    wrap.appendChild(noBtn);
+    options.appendChild(wrap);
+  }
+
+  function normalizeAnswer(str){
+    return str
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/^(a|an|the)\s+/,'')
+      .trim();
+  }
+
+  function renderType(round){
+    const { card } = round;
+    cardVisual.style.display = '';
+    setCardVisual(card);
+    promptText.innerHTML = `Type what this is`;
+    const wrap = document.createElement('div');
+    wrap.className = 'type-wrap';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'type-input';
+    input.placeholder = 'Type your answer…';
+    input.autocomplete = 'off';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+
+    const hearBtn = document.createElement('button');
+    hearBtn.className = 'opt-btn type-hear';
+    hearBtn.textContent = '🔊 Hear the word';
+    hearBtn.addEventListener('click', ()=> playPronunciation(card));
+
+    const submitBtn = document.createElement('button');
+    submitBtn.className = 'opt-btn type-submit';
+    submitBtn.textContent = 'Submit';
+
+    function attempt(){
+      const val = input.value.trim();
+      if(!val) return;
+      normalizeAnswer(val) === normalizeAnswer(card.term) ? onCorrect(round) : handleWrong(round);
+    }
+    submitBtn.addEventListener('click', attempt);
+    input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') attempt(); });
+
+    wrap.appendChild(hearBtn);
+    wrap.appendChild(input);
+    wrap.appendChild(submitBtn);
+    options.appendChild(wrap);
+    setTimeout(()=> input.focus(), 50);
+  }
+
+  function renderMatch(round){
+    const cards = round.cards;
+    cardVisual.style.display = 'none';
+    promptText.innerHTML = `Match each picture to its word`;
+    const leftItems = shuffle(cards.map(c=>({ key:c.id, card:c })));
+    const rightItems = shuffle(cards.map(c=>({ key:c.id, card:c })));
+
+    const grid = document.createElement('div');
+    grid.className = 'match-grid';
+    const leftCol = document.createElement('div');
+    leftCol.className = 'match-col';
+    const rightCol = document.createElement('div');
+    rightCol.className = 'match-col';
+
+    let selectedLeft = null;
+    let matchedCount = 0;
+
+    leftItems.forEach(item=>{
+      const chip = document.createElement('button');
+      chip.className = 'match-chip visual-chip';
+      chip.innerHTML = item.card.image_url
+        ? `<img src="${item.card.image_url}" alt="" style="width:28px;height:28px;object-fit:contain;">`
+        : '🖼️';
+      chip.dataset.key = item.key;
+      chip.addEventListener('click', ()=>{
+        if(chip.classList.contains('matched')) return;
+        leftCol.querySelectorAll('.match-chip').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+        selectedLeft = chip;
+      });
+      leftCol.appendChild(chip);
+    });
+
+    rightItems.forEach(item=>{
+      const chip = document.createElement('button');
+      chip.className = 'match-chip';
+      const label = document.createElement('span');
+      label.textContent = item.card.term;
+      chip.dataset.key = item.key;
+      chip.appendChild(label);
+      chip.appendChild(makeSpeakerBtn(item.card));
+      chip.addEventListener('click', (e)=>{
+        if(e.target.closest('.speak-btn')) return;
+        if(chip.classList.contains('matched') || !selectedLeft) return;
+        if(selectedLeft.dataset.key === chip.dataset.key){
+          selectedLeft.classList.add('matched');
+          chip.classList.add('matched');
+          selectedLeft.classList.remove('selected');
+          selectedLeft = null;
+          matchedCount++;
+          if(matchedCount === cards.length){
+            setTimeout(()=> onCorrect(round), 300);
+          }
+        } else {
+          chip.classList.add('shake-chip');
+          selectedLeft.classList.add('shake-chip');
+          showToast('WRONG PAIR');
+          const badLeft = selectedLeft;
+          setTimeout(()=>{
+            chip.classList.remove('shake-chip');
+            badLeft.classList.remove('shake-chip','selected');
+          }, 350);
+          selectedLeft = null;
+        }
+      });
+      rightCol.appendChild(chip);
+    });
+
+    grid.appendChild(leftCol);
+    grid.appendChild(rightCol);
+    options.appendChild(grid);
+  }
+
+  backToSets.addEventListener('click', ()=>{
+    setCleared.classList.remove('show');
+    taskBanner.style.display = 'none';
+    selectScreen.classList.remove('hidden');
+  });
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
+  }
+</script>
+
+</body>
+</html>
