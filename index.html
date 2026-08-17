@@ -4,20 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vocab Study</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#241226">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vocab Study">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
-    --bg:#ffffff;
-    --panel:#ffffff;
-    --panel-2:#f3f6fb;
-    --border:#dbe4f0;
-    --text:#1c2a3a;
-    --muted:#6b7a90;
-    --blue:#2f6fed;
-    --blue-dim:#2f6fed14;
-    --red:#e0333f;
-    --red-dim:#e0333f14;
-    --good:#2fa86a;
+    --bg:#241226;
+    --panel:#331a3d;
+    --panel-2:#402350;
+    --border:#5c3568;
+    --text:#f7eef9;
+    --muted:#c3a4cf;
+    --blue:#d6007f;
+    --blue-dim:#d6007f26;
+    --red:#b8860b;
+    --red-dim:#b8860b26;
+    --good:#d6007f;
     --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   }
   *{ box-sizing:border-box; }
@@ -89,7 +97,7 @@
     border-radius:9px;
     display:flex; align-items:center; justify-content:center;
     font-size:19px;
-    background:#fff;
+    background:var(--panel-2);
     border:1px solid var(--border);
   }
   .list-name{ font-size:14px; font-weight:700; }
@@ -112,7 +120,7 @@
     padding:11px 16px;
     border-radius:10px;
     border:1px solid var(--border);
-    background:#fff;
+    background:var(--panel-2);
     color:var(--text);
     cursor:pointer;
     width:100%;
@@ -188,7 +196,8 @@
     padding:11px 12px;
     border:1px solid var(--border);
     border-radius:10px;
-    background:#fff;
+    background:var(--panel-2);
+    color:var(--text);
   }
   .type-input:focus{ outline:none; border-color:var(--blue); }
 
@@ -208,7 +217,7 @@
   }
   .chip.visual-chip{ font-size:22px; text-align:center; justify-content:center; }
   .chip.selected{ outline:2px solid var(--blue); }
-  .chip.matched{ background:#e6f6ec; border-color:var(--good); opacity:0.75; cursor:default; }
+  .chip.matched{ background:#4d2960; border-color:var(--good); opacity:0.75; cursor:default; }
   .chip.shake-chip{ animation:shake 300ms; background:var(--red-dim); }
 
   .oddoneout-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
@@ -345,6 +354,12 @@
     toast.classList.remove('show');
     void toast.offsetWidth;
     toast.classList.add('show');
+  }
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(err=> console.log('SW registration failed:', err));
+    });
   }
 
   connectSilently();
@@ -557,7 +572,7 @@
         continue;
       }
 
-      const types = ['multiple','truefalse','type','dictationtype','dictationselect'];
+      const types = SINGLE_CARD_TYPES;
       const type = types[Math.floor(Math.random()*types.length)];
       rounds.push({ type, card: pool[0], allCards });
       pool = pool.slice(1);
@@ -662,7 +677,7 @@
     renderActiveRound();
   }
 
-  const SINGLE_CARD_TYPES = ['multiple','truefalse','type','dictationtype','dictationselect'];
+  const SINGLE_CARD_TYPES = ['multiple','truefalse','type','dictationtype','dictationselect','dictationpicture'];
   const MULTI_CARD_TYPES = ['match','oddoneout','connections'];
 
   function renderActiveRound(){
@@ -676,6 +691,7 @@
     else if(round.type === 'connections') renderConnections(round);
     else if(round.type === 'dictationtype') renderDictationType(round);
     else if(round.type === 'dictationselect') renderDictationSelect(round);
+    else if(round.type === 'dictationpicture') renderDictationPicture(round);
   }
 
   function onCorrect(round){
@@ -737,6 +753,7 @@
       btn.appendChild(label);
       btn.appendChild(makeSpeakerBtn(opt));
       btn.addEventListener('click', ()=>{
+        playPronunciation(opt);
         opt.id === card.id ? onCorrect(round) : handleWrong(round);
       });
       options.appendChild(btn);
@@ -843,11 +860,12 @@
       const chip = document.createElement('button');
       chip.className = 'chip visual-chip';
       chip.innerHTML = item.card.image_url
-        ? `<img src="${item.card.image_url}" alt="" style="width:40px;height:40px;object-fit:contain;">`
+        ? `<img src="${item.card.image_url}" alt="" style="width:72px;height:72px;object-fit:contain;">`
         : '🖼️';
       chip.dataset.key = item.key;
       chip.addEventListener('click', ()=>{
         if(chip.classList.contains('matched')) return;
+        playPronunciation(item.card);
         leftCol.querySelectorAll('.chip').forEach(c=>c.classList.remove('selected'));
         chip.classList.add('selected');
         selectedLeft = chip;
@@ -866,6 +884,7 @@
       chip.addEventListener('click', (e)=>{
         if(e.target.closest('.speak-btn')) return;
         if(chip.classList.contains('matched') || !selectedLeft) return;
+        playPronunciation(item.card);
         if(selectedLeft.dataset.key === chip.dataset.key){
           selectedLeft.classList.add('matched');
           chip.classList.add('matched');
@@ -909,6 +928,7 @@
         <div class="oo-img">${card.image_url ? `<img src="${card.image_url}" alt="">` : '🖼️'}</div>
         <div class="oo-label">${card.term}</div>`;
       cell.addEventListener('click', ()=>{
+        playPronunciation(card);
         card.id === round.odd.id ? onCorrect(round) : handleWrong(round);
       });
       grid.appendChild(cell);
@@ -919,7 +939,7 @@
   function renderConnections(round){
     cardVisual.style.display = 'none';
     promptText.innerHTML = `Group these into 3 sets of 3`;
-    const groupColors = ['#e6f6ec', '#e8f0fe', '#fdeeea'];
+    const groupColors = ['#4d2960', '#5c2d5f', '#5a3d1a'];
     const allCells = shuffle(round.groups.flatMap((g, gi) => g.cards.map(c => ({ card:c, groupIndex:gi }))));
 
     let selected = [];
@@ -936,6 +956,7 @@
         <div class="oo-label">${item.card.term}</div>`;
       cell.addEventListener('click', ()=>{
         if(cell.classList.contains('solved')) return;
+        playPronunciation(item.card);
         if(selected.includes(cell)){
           selected = selected.filter(c => c !== cell);
           cell.classList.remove('selected');
@@ -1014,10 +1035,45 @@
       btn.style.justifyContent = 'center';
       btn.textContent = opt.term;
       btn.addEventListener('click', ()=>{
+        playPronunciation(opt);
         opt.id === card.id ? onCorrect(round) : handleWrong(round);
       });
       options.appendChild(btn);
     });
+  }
+
+  function renderDictationPicture(round){
+    const { card, allCards } = round;
+    cardVisual.classList.remove('placeholder');
+    cardVisual.innerHTML = '';
+    cardVisual.classList.add('placeholder');
+    cardVisual.style.display = '';
+    cardVisual.textContent = '🔊';
+    promptText.innerHTML = `Listen, then pick the right picture`;
+    playPronunciation(card);
+
+    const replayBtn = document.createElement('button');
+    replayBtn.className = 'btn';
+    replayBtn.style.justifyContent = 'center';
+    replayBtn.style.marginBottom = '8px';
+    replayBtn.textContent = '🔊 Play again';
+    replayBtn.addEventListener('click', ()=> playPronunciation(card));
+    options.appendChild(replayBtn);
+
+    const distractors = pickDistractorCards(allCards, card.id, 2);
+    const grid = document.createElement('div');
+    grid.className = 'oddoneout-grid';
+    shuffle([card, ...distractors]).forEach(opt=>{
+      const cell = document.createElement('button');
+      cell.className = 'oo-cell';
+      cell.innerHTML = `<div class="oo-img">${opt.image_url ? `<img src="${opt.image_url}" alt="">` : '🖼️'}</div>`;
+      cell.addEventListener('click', ()=>{
+        playPronunciation(opt);
+        opt.id === card.id ? onCorrect(round) : handleWrong(round);
+      });
+      grid.appendChild(cell);
+    });
+    options.appendChild(grid);
   }
 
   backToSets.addEventListener('click', ()=>{
