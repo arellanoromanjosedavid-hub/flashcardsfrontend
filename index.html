@@ -275,15 +275,15 @@
     <div class="list">
       <div class="list-item" data-size="7">
         <div class="list-icon">⚡</div>
-        <div><div class="list-name">Quick</div><div class="list-meta">7 words</div></div>
+        <div><div class="list-name">Quick</div><div class="list-meta">7 questions</div></div>
       </div>
       <div class="list-item" data-size="11">
         <div class="list-icon">⏱️</div>
-        <div><div class="list-name">Medium</div><div class="list-meta">11 words</div></div>
+        <div><div class="list-name">Medium</div><div class="list-meta">11 questions</div></div>
       </div>
       <div class="list-item" data-size="15">
         <div class="list-icon">🕒</div>
-        <div><div class="list-name">Large</div><div class="list-meta">15 words</div></div>
+        <div><div class="list-name">Large</div><div class="list-meta">15 questions</div></div>
       </div>
     </div>
     <button class="back-link" id="sessionBack">← back to sets</button>
@@ -565,20 +565,38 @@
     return rounds;
   }
 
+  // Repeats cards (with a random single-card question type) to top a
+  // session up to the target question count when the set's own material
+  // ran out before we reached it.
+  function padRounds(rounds, pool, targetSize, allCards){
+    if(pool.length === 0) return rounds;
+    while(rounds.length < targetSize){
+      const card = pool[Math.floor(Math.random()*pool.length)];
+      const type = SINGLE_CARD_TYPES[Math.floor(Math.random()*SINGLE_CARD_TYPES.length)];
+      rounds.push({ type, card, allCards });
+    }
+    return rounds;
+  }
+
   async function startGame(size){
     sessionScreen.classList.add('hidden');
     showToast('Loading…');
+    // Fetch more cards than the question target — multi-card round types
+    // (Match, Odd One Out, Connections) each turn several cards into a
+    // single question, so we need headroom to still land on exactly
+    // `size` questions after building the queue.
+    const poolLimit = Math.min(size * 3, 60);
     let allCards;
     try{
       const { data, error } = await sb.rpc('get_random_cards', {
         p_set_id: currentSet.id,
-        p_limit: size
+        p_limit: poolLimit
       });
       if(error) throw error;
       allCards = data;
     } catch(err){
       console.error(err);
-      const { data, error } = await sb.from('cards').select('*').eq('set_id', currentSet.id).limit(size);
+      const { data, error } = await sb.from('cards').select('*').eq('set_id', currentSet.id).limit(poolLimit);
       if(error){ showToast('Failed to load cards'); console.error(error); return; }
       allCards = data;
     }
@@ -588,7 +606,33 @@
       return;
     }
 
-    queue = buildQueue(allCards);
+    // Diagnostic: Odd One Out / Connections need multiple cards sharing the
+    // exact same tag text. Log the distribution so it's easy to check why
+    // those round types are or aren't appearing.
+    const tagCounts = {};
+    let taggedCardCount = 0;
+    allCards.forEach(c=>{
+      if(c.tags && c.tags.length){
+        taggedCardCount++;
+        c.tags.forEach(t=>{ tagCounts[t] = (tagCounts[t]||0) + 1; });
+      }
+    });
+    console.log(`[vocab] ${taggedCardCount}/${allCards.length} fetched cards have tags. Tag counts:`, tagCounts);
+    const bestTagCount = Math.max(0, ...Object.values(tagCounts));
+    if(taggedCardCount === 0){
+      showToast('Tip: add tags in the admin tool to unlock Odd One Out & Connections');
+    } else if(bestTagCount < 3){
+      console.log('[vocab] No tag currently covers 3+ cards in this session — Odd One Out needs 3, Connections needs three different tags each covering 3+.');
+    }
+
+    let rounds = buildQueue(allCards);
+    if(rounds.length > size){
+      rounds = rounds.slice(0, size);
+    } else if(rounds.length < size){
+      rounds = padRounds(rounds, allCards, size, allCards);
+    }
+
+    queue = rounds;
     clearedCards = [];
     setCleared.classList.add('hidden');
     quizScreen.classList.remove('hidden');
